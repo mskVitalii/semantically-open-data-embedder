@@ -1,3 +1,4 @@
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
 
@@ -23,3 +24,21 @@ class Embedder:
             {"id": item["id"], "embedding": vector}
             for item, vector in zip(texts_with_ids, vectors)
         ]
+
+    def embed_tokens(self, text: str) -> dict[str, list]:
+        tokens = self.model.tokenizer.tokenize(text)
+        token_ids = self.model.tokenizer.convert_tokens_to_ids(tokens)
+        embeddings = self.model.encode(tokens, convert_to_numpy=True, normalize_embeddings=True)
+        embeddings = embeddings[:, :self.dimensions]
+        return {"tokens": tokens, "embeddings": embeddings.tolist()}
+
+    def export_tokens_tsv(self, text: str, vectors_file: str, metadata_file: str):
+        result = self.embed_tokens(text)
+        tokens = result["tokens"]
+        embeddings = np.array(result["embeddings"])
+
+        np.savetxt(vectors_file, embeddings, delimiter="\t", fmt="%.6f")
+        with open(metadata_file, "w", encoding="utf-8") as f:
+            for t in tokens:
+                f.write(t + "\n")
+        return vectors_file, metadata_file
