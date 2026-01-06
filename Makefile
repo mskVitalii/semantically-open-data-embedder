@@ -17,7 +17,7 @@ push:
 test:
 	curl -X POST http://localhost:$(PORT)/embed \
 	  -H "Content-Type: application/json" \
-	  -d '{"texts": ["пример текста", "вторая строка"]}' | jq
+	  -d '{"texts": ["text example", "second string"]}' | jq
 
 health:
 	curl http://localhost:$(PORT)/healthz | jq
