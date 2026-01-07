@@ -33,8 +33,11 @@ run:
 	docker run --rm -p $(PORT):8080 $(IMAGE_NAME):latest
 
 push:
-	docker push $(IMAGE_NAME):$(VERSION)
-	docker push $(IMAGE_NAME):latest
+	@echo "Pushing all tags for $(IMAGE_NAME)"
+	@docker images --format "{{.Repository}}:{{.Tag}}" | grep "^$(IMAGE_NAME):" | while read image; do \
+		echo "Pushing $$image"; \
+		docker push $$image || true; \
+	done
 
 # Build all models
 build-all:
