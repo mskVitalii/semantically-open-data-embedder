@@ -1,9 +1,15 @@
+import os
 from sentence_transformers import SentenceTransformer
 
 
 class Embedder:
-    def __init__(self):
-        self.model = SentenceTransformer("BAAI/bge-m3")
+    def __init__(self, model_name: str = None):
+        # Priority: parameter → env var → default
+        self.model_name = model_name or os.getenv("MODEL_NAME", "BAAI/bge-m3")
+
+        # Enable trust_remote_code for jina models (they use custom code)
+        trust_remote_code = "jina" in self.model_name.lower()
+        self.model = SentenceTransformer(self.model_name, trust_remote_code=trust_remote_code)
         self.dimensions = 1024
 
     def embed_batch(self, texts: list[str], dimension: int = None) -> list[list[float]]:
