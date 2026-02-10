@@ -97,6 +97,26 @@ class EmbedTokensRequest(BaseModel):
     text: str
     dimension: int = 1024
 
+
+def pca_3d(embeddings: np.ndarray) -> list[list[float]]:
+    centered = embeddings - embeddings.mean(axis=0)
+    U, S, Vt = np.linalg.svd(centered, full_matrices=False)
+    projected = centered @ Vt[:3].T
+    return projected.tolist()
+
+
+@app.post("/embed_tokens")
+async def embed_tokens(request: EmbedTokensRequest):
+    result = await asyncio.to_thread(embedder.embed_tokens, request.text, request.dimension)
+    embeddings = np.array(result["embeddings"])
+    points_3d = pca_3d(embeddings)
+    return {
+        "tokens": result["tokens"],
+        "points_3d": points_3d,
+        "dimension": request.dimension,
+    }
+
+
 @app.post("/embed_tokens_tsv")
 async def embed_tokens_tsv(request: EmbedTokensRequest):
     result = await asyncio.to_thread(embedder.embed_tokens, request.text, request.dimension)
