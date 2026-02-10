@@ -1,33 +1,96 @@
 import numpy as np
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import Literal
 import asyncio
 
 from .model import Embedder
+from .sparse import sparse_hash_vector_batch, DEFAULT_SPARSE_DIM
 
 app = FastAPI()
 embedder = Embedder()
 
+
 class EmbedRequest(BaseModel):
     texts: list[str]
     dimension: int = 1024
+    mode: Literal["dense", "sparse", "hybrid"] = "dense"
+    sparse_dim: int = DEFAULT_SPARSE_DIM
+    sparse_mode: Literal["binary", "tf"] = "tf"
+
 
 class EmbedWithIdsRequest(BaseModel):
     texts: list[dict[str, str]]
     dimension: int = 1024
-
+    mode: Literal["dense", "sparse", "hybrid"] = "dense"
+    sparse_dim: int = DEFAULT_SPARSE_DIM
+    sparse_mode: Literal["binary", "tf"] = "tf"
 
 
 @app.post("/embed")
 async def embed(request: EmbedRequest):
-    vectors = await asyncio.to_thread(embedder.embed_batch, request.texts, request.dimension)
-    return {"embeddings": vectors, "dimension": request.dimension}
+    if request.mode == "dense":
+        vectors = await asyncio.to_thread(embedder.embed_batch, request.texts, request.dimension)
+        return {"embeddings": vectors, "dimension": request.dimension}
+
+    if request.mode == "sparse":
+        sparse_vectors = sparse_hash_vector_batch(
+            request.texts, dim=request.sparse_dim, mode=request.sparse_mode
+        )
+        return {"embeddings": sparse_vectors, "sparse_dim": request.sparse_dim}
+
+    # hybrid
+    dense_future = asyncio.to_thread(embedder.embed_batch, request.texts, request.dimension)
+    sparse_vectors = sparse_hash_vector_batch(
+        request.texts, dim=request.sparse_dim, mode=request.sparse_mode
+    )
+    dense_vectors = await dense_future
+
+    embeddings = [
+        {"dense": d, "sparse": s}
+        for d, s in zip(dense_vectors, sparse_vectors)
+    ]
+    return {
+        "embeddings": embeddings,
+        "dimension": request.dimension,
+        "sparse_dim": request.sparse_dim,
+    }
 
 
 @app.post("/embed_with_ids")
 async def embed_with_ids(request: EmbedWithIdsRequest):
-    vectors = await asyncio.to_thread(embedder.embed_batch_with_ids, request.texts, request.dimension)
-    return {"embeddings": vectors, "dimension": request.dimension}
+    if request.mode == "dense":
+        vectors = await asyncio.to_thread(embedder.embed_batch_with_ids, request.texts, request.dimension)
+        return {"embeddings": vectors, "dimension": request.dimension}
+
+    texts = [item["text"] for item in request.texts]
+
+    if request.mode == "sparse":
+        sparse_vectors = sparse_hash_vector_batch(
+            texts, dim=request.sparse_dim, mode=request.sparse_mode
+        )
+        embeddings = [
+            {"id": item["id"], "sparse": sv}
+            for item, sv in zip(request.texts, sparse_vectors)
+        ]
+        return {"embeddings": embeddings, "sparse_dim": request.sparse_dim}
+
+    # hybrid
+    dense_future = asyncio.to_thread(embedder.embed_batch_with_ids, request.texts, request.dimension)
+    sparse_vectors = sparse_hash_vector_batch(
+        texts, dim=request.sparse_dim, mode=request.sparse_mode
+    )
+    dense_results = await dense_future
+
+    embeddings = [
+        {"id": dr["id"], "dense": dr["embedding"], "sparse": sv}
+        for dr, sv in zip(dense_results, sparse_vectors)
+    ]
+    return {
+        "embeddings": embeddings,
+        "dimension": request.dimension,
+        "sparse_dim": request.sparse_dim,
+    }
 
 
 class EmbedTokensRequest(BaseModel):

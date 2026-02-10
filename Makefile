@@ -19,7 +19,7 @@ IMAGE_BASE = mskkote/embedder
 IMAGE_NAME = $(IMAGE_BASE)-$(MODEL_TAG)
 PORT = 8080
 
-.PHONY: build run push test health dev build-all push-all list-models info
+.PHONY: build run push test test-sparse test-hybrid health dev build-all push-all list-models info
 
 build:
 	@echo "Building $(IMAGE_NAME):$(VERSION) with model $(MODEL)"
@@ -74,6 +74,16 @@ test:
 	curl -X POST http://localhost:$(PORT)/embed \
 	  -H "Content-Type: application/json" \
 	  -d '{"texts": ["text example", "second string"]}' | jq
+
+test-sparse:
+	curl -X POST http://localhost:$(PORT)/embed \
+	  -H "Content-Type: application/json" \
+	  -d '{"texts": ["text example", "second string"], "mode": "sparse"}' | jq
+
+test-hybrid:
+	curl -X POST http://localhost:$(PORT)/embed \
+	  -H "Content-Type: application/json" \
+	  -d '{"texts": ["text example", "second string"], "mode": "hybrid"}' | jq
 
 health:
 	curl http://localhost:$(PORT)/healthz | jq
