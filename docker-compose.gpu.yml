@@ -1,0 +1,19 @@
+services:
+  embedder:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+      args:
+        MODEL_NAME: ${MODEL_NAME:-BAAI/bge-m3}
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped

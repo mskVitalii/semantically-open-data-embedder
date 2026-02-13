@@ -19,7 +19,8 @@ IMAGE_BASE = mskkote/embedder
 IMAGE_NAME = $(IMAGE_BASE)-$(MODEL_TAG)
 PORT = 8080
 
-.PHONY: build run push test test-sparse test-hybrid health dev build-all push-all list-models info
+.PHONY: build run push test test-sparse test-hybrid health dev build-all push-all list-models info \
+       build-gpu run-gpu compose-gpu compose-gpu-down build-all-gpu push-gpu push-all-gpu
 
 build:
 	@echo "Building $(IMAGE_NAME):$(VERSION) with model $(MODEL)"
@@ -90,3 +91,44 @@ health:
 
 dev:
 	MODEL_NAME="$(MODEL)" uvicorn src.main:app --host 0.0.0.0 --port $(PORT) --reload
+
+# ── GPU targets ──────────────────────────────────────────────────────
+
+build-gpu:
+	@echo "Building GPU $(IMAGE_NAME)-gpu:$(VERSION) with model $(MODEL)"
+	docker build \
+		--build-arg MODEL_NAME="$(MODEL)" \
+		-f Dockerfile.gpu \
+		-t $(IMAGE_NAME)-gpu:$(VERSION) \
+		-t $(IMAGE_NAME)-gpu:latest \
+		.
+
+run-gpu:
+	docker run --rm --gpus all -p $(PORT):8080 $(IMAGE_NAME)-gpu:latest
+
+compose-gpu:
+	MODEL_NAME="$(MODEL)" docker compose -f docker-compose.gpu.yml up --build
+
+compose-gpu-down:
+	docker compose -f docker-compose.gpu.yml down
+
+build-all-gpu:
+	@for model in $(MODELS); do \
+		echo "Building GPU $$model..."; \
+		$(MAKE) build-gpu MODEL=$$model || exit 1; \
+	done
+	@echo "All GPU models built successfully!"
+
+push-gpu:
+	@echo "Pushing all tags for $(IMAGE_NAME)-gpu"
+	@docker images --format "{{.Repository}}:{{.Tag}}" | grep "^$(IMAGE_NAME)-gpu:" | while read image; do \
+		echo "Pushing $$image"; \
+		docker push $$image || true; \
+	done
+
+push-all-gpu:
+	@for model in $(MODELS); do \
+		echo "Pushing GPU $$model..."; \
+		$(MAKE) push-gpu MODEL=$$model || exit 1; \
+	done
+	@echo "All GPU models pushed successfully!"

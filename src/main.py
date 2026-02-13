@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -6,6 +7,8 @@ import asyncio
 
 from .model import Embedder
 from .sparse import sparse_hash_vector_batch, DEFAULT_SPARSE_DIM
+
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 embedder = Embedder()

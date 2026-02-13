@@ -1,0 +1,28 @@
+# GPU-enabled Dockerfile with CUDA 12.4 (PyTorch official image)
+# Usage: docker build -f Dockerfile.gpu --build-arg MODEL_NAME=BAAI/bge-m3 -t embedder-gpu .
+# Run:   docker run --gpus all -p 8080:8080 embedder-gpu
+
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+
+ARG MODEL_NAME=BAAI/bge-m3
+
+ENV MODEL_NAME=${MODEL_NAME}
+ENV TRANSFORMERS_CACHE=/root/.cache/huggingface/transformers
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+WORKDIR /app
+
+# torch is already installed in the base image, install the rest
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src/ ./src/
+
+# Pre-download the model during build
+RUN python -c "from sentence_transformers import SentenceTransformer; \
+model_name = '${MODEL_NAME}'; \
+trust_remote_code = 'jina' in model_name.lower(); \
+SentenceTransformer(model_name, trust_remote_code=trust_remote_code)"
+
+CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
